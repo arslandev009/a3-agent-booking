@@ -53,10 +53,26 @@ docker compose up --build                                    # one worker, SQLit
 - `POST /chat`: one agent per server-side session, message <= 1000 chars, 20 messages/min per client, text never logged.
 - `GET /approvals`, `POST /approvals/{id}/approve|reject`: staff only (`X-Staff-Key`), disabled without `STAFF_API_KEY`.
 - Transient LLM failures (429/5xx after retries) return `503` with a friendly message.
-- Env: `LLM_PROVIDER`, `CLINIC_DB`, `STAFF_API_KEY`, `CLINIC_JUDGE=on|off`, `CLINIC_RATE_LIMIT`, `CLINIC_DEBUG=1`, `CLINIC_CORS_ORIGINS`.
+- Env: `LLM_PROVIDER`, `CLINIC_DB`, `STAFF_API_KEY`, `CLINIC_JUDGE=on|off`, `CLINIC_RATE_LIMIT`, `CLINIC_DEBUG=1`, `CLINIC_CORS_ORIGINS`, and the public-demo settings below.
 - UI: patient chat, "Behind the scenes" (tool and guard names only, no message text), "Front desk" approvals.
   To host the page elsewhere open it with `?api=https://your-api` and set `CLINIC_CORS_ORIGINS`.
 - Keys are read at run time and are not baked into the image.
+
+### Public demo safety (before hosting this anywhere)
+
+A public URL spends your own provider quota, so the API has safety nets, all off by default:
+
+| Env var | Effect |
+|---|---|
+| `CLINIC_DAILY_CAP=300` | after 300 chat messages per UTC day (whole server) `/chat` answers `503` with a "demo paused, watch the video" message and makes **no model call** |
+| `CLINIC_DAILY_CAP_PER_CLIENT=40` | the same limit per client address, so one visitor cannot use the whole budget |
+| `CLINIC_PROXY_HOPS=1` | number of trusted reverse proxies in front (hosts such as Render use 1). Limits then use the real client address, read from the right of `X-Forwarded-For` (the left side can be forged). Leave at 0 when there is no proxy |
+| `CLINIC_DEMO_VIDEO_URL` | link added to the "paused" message |
+
+Limits of this design: the counters live in memory, so they reset when a free host restarts or wakes the process, and a
+small cap is only a safety net, not accounting. A real kill-switch belongs in front of the provider keys (a gateway) or in
+the provider's own spending limits. One chat message costs several model calls (agent loop plus judge), so set the cap
+from your provider's daily token limit, not from the message count alone.
 
 ## Code-level guards (`agent.py`)
 
@@ -87,7 +103,7 @@ data. If it is unavailable the agent falls back to keyword rules and records `ju
 
 | Layer | Result | Honest reading |
 |---|---|---|
-| `pytest` (fake LLM, no key, also run in CI) | **186 passed** | proves code paths and guards, not model quality |
+| `pytest` (fake LLM, no key, also run in CI) | **194 passed** | proves code paths and guards, not model quality |
 | Programmatic suite (`scripts/run_suite.py`, 76 tests: info, main flow, identity, slots, validation, safety, API, tool layer) | First clean full run on Groq `gpt-oss-120b` (step 22 code): **74/76 PASS**, 240,865 tokens. The 2 failures: I5 (a wording check that rejected a curly apostrophe: test bug) and C9 (real bug: judge false positive plus a misleading repair note). After the step 23 fixes: I5, I7, F-MAIN, C1, C6-C9 PASS on Groq (C9 passed in 2 further separate Groq runs) and C6-C9 also on Gemini `gemini-3.5-flash-lite`. | The two failed tests were re-run on the fixed code, not the whole suite: no single full run exists on the final code. Earlier "71/71" runs were assembled from pieces on older builds |
 | Dev scenarios (30) | Groq: 30/30 before step 22; 26/30 after it, the 4 misses (C01-C04) were HTTP 429 quota errors, not agent failures. Gemini `gemini-3.5-flash-lite`: C01-C04 4/4 on the final code | dev set was used for tuning: a regression check, not an accuracy score |
 | Held-out sets v1-v3 | burned (fixes were made from their failures) | do not quote them as a score; a fresh set is needed for a blind number |

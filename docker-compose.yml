@@ -12,6 +12,10 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
       STAFF_API_KEY: ${STAFF_API_KEY:?set STAFF_API_KEY to enable the staff approval endpoints}
       CLINIC_JUDGE: ${CLINIC_JUDGE:-on}
+      CLINIC_DAILY_CAP: ${CLINIC_DAILY_CAP:-0}
+      CLINIC_DAILY_CAP_PER_CLIENT: ${CLINIC_DAILY_CAP_PER_CLIENT:-0}
+      CLINIC_PROXY_HOPS: ${CLINIC_PROXY_HOPS:-0}
+      CLINIC_DEMO_VIDEO_URL: ${CLINIC_DEMO_VIDEO_URL:-}
       CLINIC_DEBUG: ${CLINIC_DEBUG:-1}   # demo: show tool/guard names in the UI trace (contains no message text)
     volumes:
       - clinic-data:/data

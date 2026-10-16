@@ -153,3 +153,44 @@ def test_cors_only_for_configured_origins():
     bad = c.get("/health", headers={"Origin": "https://evil.example.com"})
     assert ok.headers.get("access-control-allow-origin") == "https://demo.example.com"
     assert "access-control-allow-origin" not in bad.headers
+
+
+# ---------------------------------------------------------------- demo safety nets (public hosting)
+def test_daily_cap_pauses_the_demo_without_calling_the_model():
+    from clinicagent.api import DEMO_LIMIT_MESSAGE
+    c, _, llm = client([resp("Hello one"), resp("Hello two"), resp("never used")], daily_cap=2,
+                       demo_video_url="https://example.com/demo")
+    codes = [c.post("/chat", json={"message": "hi"}).status_code for _ in range(3)]
+    assert codes == [200, 200, 503]
+    r = c.post("/chat", json={"message": "hi"})
+    assert r.json()["detail"].startswith(DEMO_LIMIT_MESSAGE) and "https://example.com/demo" in r.json()["detail"]
+    assert len(llm.calls) == 2  # the paused demo spent no provider quota
+    assert c.get("/health").json()["demo_paused"] is True
+
+
+def test_daily_cap_resets_on_the_next_utc_day():
+    day = ["2026-10-17"]
+    c, _, _ = client([resp("Hello one"), resp("Hello two")], daily_cap=1, today=lambda: day[0])
+    assert c.post("/chat", json={"message": "hi"}).status_code == 200
+    assert c.post("/chat", json={"message": "hi"}).status_code == 503
+    day[0] = "2026-10-18"
+    assert c.post("/chat", json={"message": "hi"}).status_code == 200
+
+
+def test_per_client_daily_cap_only_blocks_that_client():
+    c, _, _ = client([resp("Hello one"), resp("Hello two"), resp("Hello three")], daily_cap_per_client=1, proxy_hops=1)
+    post = lambda ip: c.post("/chat", json={"message": "hi"}, headers={"X-Forwarded-For": ip}).status_code
+    assert [post("1.1.1.1"), post("1.1.1.1"), post("2.2.2.2")] == [200, 503, 200]
+
+
+def test_forwarded_for_is_read_from_the_right_so_it_cannot_be_forged():
+    c, _, _ = client([resp("Hello one"), resp("Hello two"), resp("Hello three")], daily_cap_per_client=1, proxy_hops=1)
+    # the caller invents a different leftmost address each time; the proxy always appends the real one on the right
+    post = lambda fake: c.post("/chat", json={"message": "hi"}, headers={"X-Forwarded-For": f"{fake}, 9.9.9.9"}).status_code
+    assert [post("6.6.6.6"), post("7.7.7.7")] == [200, 503]
+
+
+def test_without_trusted_proxy_the_forwarded_header_is_ignored():
+    c, _, _ = client([resp("Hello one"), resp("Hello two")], daily_cap_per_client=1)
+    post = lambda ip: c.post("/chat", json={"message": "hi"}, headers={"X-Forwarded-For": ip}).status_code
+    assert [post("1.1.1.1"), post("2.2.2.2")] == [200, 503]
