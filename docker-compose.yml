@@ -1,0 +1,21 @@
+# docker compose up --build        (./vendor already holds the llm-client package; re-run  python scripts/vendor_llm_client.py  only to refresh it)
+# Provider keys come from a local .env next to this file (copy .env.example, never commit it); it is NOT copied into the image.
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      STAFF_API_KEY: ${STAFF_API_KEY:?set STAFF_API_KEY to enable the staff approval endpoints}
+      CLINIC_JUDGE: ${CLINIC_JUDGE:-on}
+      CLINIC_DEBUG: ${CLINIC_DEBUG:-1}   # demo: show tool/guard names in the UI trace (contains no message text)
+    volumes:
+      - clinic-data:/data
+    restart: unless-stopped
+
+volumes:
+  clinic-data:

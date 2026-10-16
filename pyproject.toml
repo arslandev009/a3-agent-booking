@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clinicagent"
+version = "0.1.0"
+description = "A3: dental clinic appointment agent (tool calling, human approval, evals)"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2.6"]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.setuptools.package-data]
+clinicagent = ["web/*.html"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,6 @@
+# Runtime dependencies for the API container. llm-client itself is vendored (see scripts/vendor_llm_client.py).
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6
+openai>=1.40
+python-dotenv>=1.0

@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrightSmile Dental booking assistant (demo)</title>
+<meta name="description" content="Demo of an AI booking assistant for a fictional dental clinic, with staff approval for cancellations and a live view of every tool call and safety check.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%230E6B6A%27/%3E%3Cpath d=%27M9 11c0-2 2-3 4-3 1.2 0 2 .5 3 .5s1.8-.5 3-.5c2 0 4 1 4 3 0 3-1.2 5-1.8 8-.3 1.6-.8 4-2 4-1.4 0-1.2-4-3.2-4s-1.8 4-3.2 4c-1.2 0-1.7-2.400-2-4C10.200 16 9 14 9 11z%27 fill=%27%23fff%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --enamel: #F4F7F6;
+    --paper: #FFFFFF;
+    --ink: #12262B;
+    --muted: #4F6469;
+    --teal: #0E6B6A;
+    --teal-deep: #0A4F4F;
+    --mint: #DCEEEA;
+    --line: #CFDBD8;
+    --amber: #B87503;
+    --amber-bg: #FFF1CF;
+    --danger: #B42318;
+    --danger-bg: #FDE9E7;
+    --radius: 6px;
+    --body: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: "Bricolage Grotesque", "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--enamel); color: var(--ink);
+    font: 400 1rem/1.55 var(--body);
+  }
+  .sr { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  .shell { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; padding-bottom: 14px; }
+  header.top h1 { margin: 0; font: 700 1.6rem/1.1 var(--display); letter-spacing: -0.01em; color: var(--teal-deep); }
+  header.top p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  details.notes { margin: 0 0 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+  details.notes summary { cursor: pointer; padding: 10px 14px; font-weight: 600; }
+  details.notes div { padding: 0 14px 12px; color: var(--muted); max-width: 75ch; }
+  details.notes p { margin: 6px 0; }
+
+  .tabs { display: none; gap: 6px; margin-bottom: 12px; }
+  .tabs button {
+    flex: 1; padding: 10px 8px; border: 1px solid var(--line); background: var(--paper);
+    border-radius: var(--radius); cursor: pointer; font-weight: 600;
+  }
+  .tabs button[aria-selected="true"] { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .tabs .badge { margin-left: 6px; background: var(--amber); color: #fff; border-radius: 999px; padding: 0 7px; font-size: .85rem; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .side { display: grid; gap: 16px; }
+  .panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+  .panel > h2 { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); font: 700 1.05rem/1.2 var(--display); }
+  .panel > h2 small { display: block; margin-top: 2px; font: 400 .9rem/1.4 var(--body); color: var(--muted); }
+
+  /* conversation */
+  .chat { display: flex; flex-direction: column; min-height: 520px; max-height: calc(100vh - 150px); }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .msg { padding-left: 12px; border-left: 3px solid var(--line); max-width: 68ch; }
+  .msg .who { font-weight: 700; font-size: .9rem; color: var(--muted); }
+  .msg.bot { border-left-color: var(--teal); }
+  .msg.bot .who { color: var(--teal-deep); }
+  .msg p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.note { border-left-color: var(--danger); background: var(--danger-bg); padding: 8px 12px; border-radius: 0 var(--radius) var(--radius) 0; }
+  .msg.note p { color: var(--danger); font-weight: 600; margin: 0; }
+  .empty { color: var(--muted); max-width: 52ch; }
+  .empty h3 { margin: 0 0 4px; font: 700 1.2rem/1.2 var(--display); color: var(--ink); }
+  .starters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .starters button {
+    border: 1px solid var(--teal); background: var(--mint); color: var(--teal-deep); border-radius: 999px;
+    padding: 6px 12px; cursor: pointer; font-weight: 600;
+  }
+  .starters button:hover { background: #cfe6e0; }
+  .working { color: var(--muted); font-style: italic; }
+  .dots span { display: inline-block; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: var(--teal); animation: blink 1.1s infinite ease-in-out; }
+  .dots span:nth-child(2) { animation-delay: .15s; } .dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  form.send { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); align-items: flex-end; }
+  form.send textarea {
+    flex: 1; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--enamel);
+  }
+  .btn {
+    border: 0; background: var(--teal); color: #fff; padding: 11px 18px; border-radius: var(--radius);
+    font-weight: 700; cursor: pointer; min-height: 44px;
+  }
+  .btn:hover { background: var(--teal-deep); }
+  .btn[disabled] { opacity: .55; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--teal-deep); border: 1px solid var(--teal); }
+  .btn.ghost:hover { background: var(--mint); }
+  .btn.warn { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+  .btn.warn:hover { background: var(--enamel); }
+  .linkish { background: none; border: 0; padding: 0; color: var(--teal-deep); text-decoration: underline; cursor: pointer; }
+  .chatbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+
+  /* behind the scenes */
+  #trace { padding: 12px 16px; display: grid; gap: 12px; max-height: 340px; overflow-y: auto; }
+  .turn h3 { margin: 0 0 4px; font-size: .9rem; color: var(--muted); font-weight: 600; }
+  .turn ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .turn li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .tag { font-size: .8rem; font-weight: 700; border-radius: 4px; padding: 1px 7px; border: 1px solid transparent; }
+  .tag.ok { background: var(--mint); color: var(--teal-deep); border-color: #b9d8d1; }
+  .tag.fail { background: var(--danger-bg); color: var(--danger); border-color: #f3c3be; }
+  .tag.guard { background: var(--amber-bg); color: #7a4d00; border-color: #efd18a; }
+  .none { color: var(--muted); }
+  .hint { padding: 12px 16px; color: var(--muted); margin: 0; }
+
+  /* front desk: appointment tickets */
+  .desk { padding: 12px 16px; display: grid; gap: 12px; }
+  .keyrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .keyrow input { flex: 1; min-width: 160px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--enamel); }
+  .ticket {
+    display: grid; grid-template-columns: 92px 1fr; border: 1px solid #e3c577; border-radius: var(--radius);
+    background: var(--amber-bg); overflow: hidden;
+  }
+  .ticket .stub { display: grid; place-items: center; border-right: 2px dashed #d9b35c; padding: 8px; text-align: center; }
+  .ticket .stub b { display: block; font: 700 1.5rem/1 var(--display); color: #7a4d00; }
+  .ticket .stub span { font-size: .8rem; color: #7a4d00; }
+  .ticket .body { padding: 10px 12px; }
+  .ticket .body strong { display: block; }
+  .ticket .body .when { color: #5f3d00; }
+  .ticket .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .ticket .actions .btn { padding: 8px 12px; min-height: 40px; }
+  .msgline { min-height: 1.4em; margin: 0; color: var(--muted); }
+  .msgline.err { color: var(--danger); font-weight: 600; }
+
+  footer { margin-top: 20px; color: var(--muted); font-size: .9rem; max-width: 80ch; }
+
+  @media (max-width: 959px) {
+    .tabs { display: flex; }
+    .layout { grid-template-columns: 1fr; }
+    .side { display: block; }
+    [data-panel] { display: none; }
+    [data-panel].active { display: block; }
+    .chat { max-height: none; min-height: 60vh; }
+    #log { max-height: 55vh; }
+  }
+  @media (prefers-reduced-motion: reduce) { .dots span { animation: none; opacity: .7; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <h1>BrightSmile Dental</h1>
+    <p>Booking assistant demo. This is a fictional clinic with sample data, so please don't type real personal details.</p>
+  </header>
+
+  <details class="notes">
+    <summary>How this demo works</summary>
+    <div>
+      <p><b>Chat</b> is what a patient sees. The assistant can check times, book, and ask for a cancellation.</p>
+      <p><b>Behind the scenes</b> lists every tool the assistant used and every safety rule that stopped it.</p>
+      <p><b>Front desk</b> is the clinic staff view. A cancellation is only a request until a person approves it here.</p>
+      <p>Try asking for a time the clinic is closed, asking for medical advice, or cancelling an appointment you booked a minute ago.</p>
+    </div>
+  </details>
+
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" aria-selected="true" data-tab="chat">Chat</button>
+    <button role="tab" aria-selected="false" data-tab="trace">Behind the scenes</button>
+    <button role="tab" aria-selected="false" data-tab="desk">Front desk <span class="badge" id="badge" hidden>0</span></button>
+  </div>
+
+  <div class="layout">
+    <section class="panel chat active" data-panel="chat" aria-label="Chat with the assistant">
+      <h2>Chat with the assistant<small>Replies can take a few seconds while the assistant checks the calendar.</small></h2>
+      <div id="log" role="log" aria-live="polite" aria-relevant="additions">
+        <div class="empty" id="empty">
+          <h3>Book, check or cancel an appointment</h3>
+          <p>Tell the assistant what you need, or start with one of these.</p>
+          <div class="starters" id="starters">
+            <button type="button">Book a cleaning for tomorrow morning</button>
+            <button type="button">Do you have parking?</button>
+            <button type="button">I need to cancel my appointment</button>
+            <button type="button">Can I come in on Sunday?</button>
+            <button type="button">My tooth hurts. What should I take?</button>
+          </div>
+        </div>
+      </div>
+      <form class="send" id="form">
+        <label for="input" class="sr">Your message</label>
+        <textarea id="input" rows="1" maxlength="1000" placeholder="Type your message" autocomplete="off"></textarea>
+        <button class="btn" id="sendBtn" type="submit">Send message</button>
+      </form>
+      <div class="chatbar"><span id="status">Press Enter to send, Shift+Enter for a new line.</span><button type="button" class="linkish" id="reset">Start a new chat</button></div>
+    </section>
+
+    <div class="side">
+      <section class="panel" data-panel="trace" aria-label="Behind the scenes">
+        <h2>Behind the scenes<small>Tools used and safety rules triggered, per reply. No message text is shown here.</small></h2>
+        <p class="hint" id="traceHint">Send a message to see what the assistant did.</p>
+        <div id="trace"></div>
+      </section>
+
+      <section class="panel" data-panel="desk" aria-label="Front desk">
+        <h2>Front desk<small>Cancellation requests wait here for a person to decide.</small></h2>
+        <div class="desk">
+          <form class="keyrow" id="keyForm">
+            <label for="key" class="sr">Staff key</label>
+            <input id="key" type="password" placeholder="Staff key (STAFF_API_KEY)" autocomplete="off">
+            <button class="btn ghost" type="submit">Load requests</button>
+          </form>
+          <p class="msgline" id="deskMsg" aria-live="polite">Staff only. Enter the key set in STAFF_API_KEY, then load requests. A request appears here after a patient asks the assistant to cancel.</p>
+          <div id="tickets" style="display:grid;gap:12px"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer>Sample data only. The assistant can be wrong; a clinic would still confirm appointments by phone. It cannot give medical advice.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+  var API = (new URLSearchParams(location.search).get("api") || "").replace(/\/$/, "");
+  var sessionId = null, turnNo = 0, busy = false, staffKey = "";
+
+  var TOOL_LABEL = {
+    check_availability: "Checked free times",
+    book_appointment: "Booked an appointment",
+    cancel_appointment: "Requested a cancellation",
+    get_clinic_info: "Read clinic information"
+  };
+  var GUARD_LABEL = {
+    emergency_bypass: "Emergency wording: the AI was skipped and a fixed safety message was sent",
+    cancel_not_requested: "Blocked a cancellation the patient had not asked for",
+    time_not_confirmed: "Blocked a booking time the patient had not chosen",
+    availability_not_checked: "Blocked a booking made before checking free times",
+    repeated_failed_call: "Stopped a repeated failing call",
+    bad_tool_arguments: "Rejected malformed tool arguments",
+    max_steps: "Stopped after too many steps",
+    pending_note_added: "Added the 'pending staff approval' note",
+    judge_unavailable: "Safety checker was unavailable, so simpler rules were used"
+  };
+  function guardLabel(g) {
+    if (GUARD_LABEL[g]) return GUARD_LABEL[g];
+    if (g.indexOf("repair:") === 0) return "Asked the assistant to correct its reply (" + g.slice(7).replace(/_/g, " ") + ")";
+    if (g.indexOf("blocked:") === 0) return "Replaced a reply that claimed something that did not happen";
+    if (g.indexOf("judge_overruled_regex:") === 0) return "Safety checker overruled a keyword rule (" + g.split(":")[1].replace(/_/g, " ") + ")";
+    if (g.indexOf("judge_caught:") === 0) return "Safety checker caught a wrong claim (" + g.split(":")[1].replace(/_/g, " ") + ")";
+    if (g.indexOf("llm_retry:") === 0) return "Retried the model after a temporary error";
+    return g.replace(/_/g, " ");
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  // Minimal, XSS-safe formatting for model replies: **bold** and "- " / "* " list lines. Everything else is plain text.
+  function richInto(node, text) {
+    text.split("\n").forEach(function (line, i) {
+      if (i) node.appendChild(document.createTextNode("\n"));
+      var m = line.match(/^\s*[-*\u2022]\s+(.*)$/);
+      var body = m ? m[1] : line;
+      if (m) node.appendChild(document.createTextNode("\u2022 "));
+      body.split(/(\*\*[^*]+\*\*)/).forEach(function (part) {
+        if (/^\*\*[^*]+\*\*$/.test(part)) { var b = document.createElement("strong"); b.textContent = part.slice(2, -2); node.appendChild(b); }
+        else if (part) node.appendChild(document.createTextNode(part));
+      });
+    });
+  }
+  function addMsg(kind, who, text, rich) {
+    var empty = $("#empty"); if (empty) empty.remove();
+    var m = el("div", "msg " + kind);
+    if (who) m.appendChild(el("div", "who", who));
+    var p = el("p");
+    if (rich) richInto(p, text); else p.textContent = text;
+    m.appendChild(p);
+    $("#log").appendChild(m);
+    $("#log").scrollTop = $("#log").scrollHeight;
+    return m;
+  }
+  function setBusy(b) {
+    busy = b;
+    $("#sendBtn").disabled = b;
+    $("#status").textContent = b ? "The assistant is working on your message." : "Press Enter to send, Shift+Enter for a new line.";
+  }
+
+  function addTrace(debug) {
+    $("#traceHint").hidden = true;
+    turnNo += 1;
+    var box = el("div", "turn");
+    box.appendChild(el("h3", null, "Reply " + turnNo));
+    var ul = el("ul");
+    var any = false;
+    (debug.tool_calls || []).forEach(function (c) {
+      any = true;
+      var li = el("li");
+      li.appendChild(el("span", "tag " + (c.ok ? "ok" : "fail"), c.ok ? "done" : "refused"));
+      li.appendChild(el("span", null, (TOOL_LABEL[c.name] || c.name) + (c.ok ? "" : " (the system said no)")));
+      ul.appendChild(li);
+    });
+    (debug.guards || []).forEach(function (g) {
+      any = true;
+      var li = el("li");
+      li.appendChild(el("span", "tag guard", "safety"));
+      li.appendChild(el("span", null, guardLabel(g)));
+      ul.appendChild(li);
+    });
+    if (!any) { var li = el("li", "none", "Answered directly, no tools needed."); ul.appendChild(li); }
+    box.appendChild(ul);
+    var t = $("#trace");
+    t.insertBefore(box, t.firstChild);
+  }
+
+  async function send(text) {
+    text = text.trim();
+    if (!text || busy) return;
+    addMsg("user", "You", text);
+    $("#input").value = ""; autosize();
+    setBusy(true);
+    var working = addMsg("bot working", "Assistant", "Checking");
+    working.querySelector("p").innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
+    try {
+      var res = await fetch(API + "/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, session_id: sessionId })
+      });
+      var data = {};
+      try { data = await res.json(); } catch (e) {}
+      working.remove();
+      if (!res.ok) {
+        var msg = res.status === 429 ? "Too many messages in a minute. Wait a moment, then send again."
+          : res.status === 503 ? (data.detail || "The assistant is busy. Try again in a moment.")
+          : res.status === 422 ? "That message could not be sent. Keep it between 1 and 1000 characters."
+          : "The server hit a problem. Send the message again.";
+        addMsg("note", null, msg);
+      } else {
+        sessionId = data.session_id;
+        addMsg("bot", "Assistant", data.reply, true);
+        if (data.debug) {
+          addTrace(data.debug);
+          var cancelled = (data.debug.tool_calls || []).some(function (c) { return c.name === "cancel_appointment" && c.ok; });
+          if (cancelled && staffKey) loadQueue(true);
+          else if (cancelled) setDeskMsg("A cancellation request is waiting. Enter the staff key to review it.", false);
+        } else if (turnNo === 0) {
+          $("#traceHint").textContent = "This server has the trace turned off.";
+        }
+      }
+    } catch (e) {
+      working.remove();
+      addMsg("note", null, "Cannot reach the server. Check your connection and send the message again.");
+    } finally {
+      setBusy(false);
+      $("#input").focus();
+    }
+  }
+
+  /* ---------------- front desk ---------------- */
+  function setDeskMsg(t, err) { var m = $("#deskMsg"); m.textContent = t; m.className = "msgline" + (err ? " err" : ""); }
+  function fmtWhen(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  }
+  function setBadge(n) { var b = $("#badge"); b.textContent = n; b.hidden = !n; }
+
+  async function staffFetch(path, method) {
+    return fetch(API + path, { method: method || "GET", headers: { "X-Staff-Key": staffKey } });
+  }
+  async function loadQueue(quiet) {
+    if (!staffKey) { setDeskMsg("Enter the staff key to see waiting requests.", false); return; }
+    try {
+      var res = await staffFetch("/approvals");
+      if (res.status === 401) { setDeskMsg("That staff key was not accepted.", true); staffKey = ""; return; }
+      if (res.status === 503) { setDeskMsg("Staff access is not switched on for this server.", true); return; }
+      if (!res.ok) { setDeskMsg("Could not load requests. Try again.", true); return; }
+      var items = (await res.json()).pending || [];
+      var box = $("#tickets"); box.textContent = "";
+      setBadge(items.length);
+      setDeskMsg(items.length ? items.length + (items.length === 1 ? " request is" : " requests are") + " waiting for a decision." : "No cancellation requests waiting.", false);
+      items.forEach(function (it) { box.appendChild(ticket(it)); });
+    } catch (e) { setDeskMsg("Cannot reach the server.", true); }
+  }
+  function ticket(it) {
+    var t = el("div", "ticket");
+    var stub = el("div", "stub"); var b = el("b", null, "#" + it.appointment_id); stub.appendChild(b); stub.appendChild(el("span", null, "booking"));
+    var body = el("div", "body");
+    body.appendChild(el("strong", null, it.patient_name));
+    body.appendChild(el("span", "when", it.service.replace(/_/g, " ") + ", " + fmtWhen(it.start)));
+    var act = el("div", "actions");
+    var yes = el("button", "btn", "Approve cancellation"); yes.type = "button";
+    var no = el("button", "btn warn", "Keep appointment"); no.type = "button";
+    yes.onclick = function () { decide(it.appointment_id, "approve", yes, no); };
+    no.onclick = function () { decide(it.appointment_id, "reject", yes, no); };
+    act.appendChild(yes); act.appendChild(no); body.appendChild(act);
+    t.appendChild(stub); t.appendChild(body);
+    return t;
+  }
+  async function decide(id, what, yes, no) {
+    yes.disabled = no.disabled = true;
+    try {
+      var res = await staffFetch("/approvals/" + id + "/" + what, "POST");
+      if (!res.ok) { var d = {}; try { d = await res.json(); } catch (e) {} setDeskMsg(d.detail || "Could not save the decision.", true); }
+      else await loadQueue(true);
+      if (res.ok) setDeskMsg(what === "approve" ? "Cancellation approved. The time slot is free again." : "Appointment kept. The patient's booking stays in place.", false);
+    } catch (e) { setDeskMsg("Cannot reach the server.", true); }
+    yes.disabled = no.disabled = false;
+  }
+
+  /* ---------------- wiring ---------------- */
+  function autosize() { var t = $("#input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; }
+  $("#form").addEventListener("submit", function (e) { e.preventDefault(); send($("#input").value); });
+  $("#input").addEventListener("input", autosize);
+  $("#input").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send($("#input").value); }
+  });
+  $("#log").addEventListener("click", function (e) { if (e.target.closest("#starters") && e.target.tagName === "BUTTON") send(e.target.textContent); });
+  $("#keyForm").addEventListener("submit", function (e) { e.preventDefault(); staffKey = $("#key").value.trim(); loadQueue(false); });
+  var emptyHTML = $("#log").innerHTML;
+  $("#reset").addEventListener("click", function () {
+    sessionId = null; turnNo = 0;
+    $("#log").innerHTML = emptyHTML;
+    $("#trace").textContent = "";
+    $("#traceHint").hidden = false;
+    $("#traceHint").textContent = "Send a message to see what the assistant did.";
+  });
+
+  var tabs = document.querySelectorAll(".tabs button");
+  function showTab(name) {
+    tabs.forEach(function (b) { b.setAttribute("aria-selected", String(b.dataset.tab === name)); });
+    document.querySelectorAll("[data-panel]").forEach(function (p) { p.classList.toggle("active", p.dataset.panel === name); });
+  }
+  tabs.forEach(function (b) { b.addEventListener("click", function () { showTab(b.dataset.tab); }); });
+  showTab("chat");
+  autosize();
+})();
+</script>
+</body>
+</html>
