@@ -183,8 +183,11 @@ def create_app(
 
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok", "sessions": len(sessions), "judge": use_judge,
-                "demo_paused": bool(cap.global_cap) and cap.total >= cap.global_cap}
+        out = {"status": "ok", "sessions": len(sessions), "judge": use_judge,
+               "demo_paused": bool(cap.global_cap) and cap.total >= cap.global_cap}
+        if hasattr(llm, "status"):  # provider failover: which providers are ready or cooling down (names only)
+            out["llm"] = llm.status()
+        return out
 
     @app.post("/chat", response_model=ChatOut, response_model_exclude_none=True)
     def chat(body: ChatIn, request: Request) -> ChatOut:
@@ -239,6 +242,7 @@ def build_app() -> FastAPI:
     """Production entry point: configuration from environment variables.
 
     LLM_PROVIDER / provider keys   read by llm-client (.env at the ai-studio root, or real env vars in Docker)
+    LLM_PROVIDERS      ordered list, e.g. "groq,gemini": automatic failover when a provider's quota is used up (see failover.py)
     CLINIC_DB          SQLite path (default clinic.db)
     STAFF_API_KEY      enables the /approvals endpoints
     CLINIC_JUDGE       on|off (default on)
@@ -252,7 +256,12 @@ def build_app() -> FastAPI:
     from llm_client.client import LLM  # imported here so tests and tools do not need the package
 
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    llm = LLM(os.getenv("LLM_PROVIDER") or None)
+    providers = [p.strip() for p in os.getenv("LLM_PROVIDERS", "").split(",") if p.strip()]
+    if len(providers) > 1:  # e.g. "groq,gemini": when one runs out of quota the next one answers
+        from .failover import FailoverLLM
+        llm = FailoverLLM([LLM(p) for p in providers])
+    else:
+        llm = LLM((providers[0] if providers else None) or os.getenv("LLM_PROVIDER") or None)
     tools = ClinicTools(os.getenv("CLINIC_DB", "clinic.db"))
     return create_app(
         llm,

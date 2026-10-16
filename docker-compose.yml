@@ -10,6 +10,7 @@ services:
         required: false
     environment:
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      LLM_PROVIDERS: ${LLM_PROVIDERS:-}   # e.g. groq,gemini = automatic failover when one provider's quota is used up
       STAFF_API_KEY: ${STAFF_API_KEY:?set STAFF_API_KEY to enable the staff approval endpoints}
       CLINIC_JUDGE: ${CLINIC_JUDGE:-on}
       CLINIC_DAILY_CAP: ${CLINIC_DAILY_CAP:-0}

@@ -74,6 +74,16 @@ small cap is only a safety net, not accounting. A real kill-switch belongs in fr
 the provider's own spending limits. One chat message costs several model calls (agent loop plus judge), so set the cap
 from your provider's daily token limit, not from the message count alone.
 
+### Provider failover (two free providers, one demo)
+
+Set `LLM_PROVIDERS=groq,gemini` (needs both keys). The first provider is preferred; when a call fails with a quota,
+server or key error (429, 5xx, timeout, 401/403) that provider is put on cooldown and the same call goes to the next one.
+The cooldown is the wait the provider suggests, or 60 s doubling up to one hour; then the preferred provider is tried
+again, so the demo keeps answering while either provider has quota. If both are cooling down the patient sees the usual
+"busy" message and no call is made. `GET /health` lists which providers are ready or cooling (names only).
+Malformed requests are not retried elsewhere. Unit tests use fake providers; whether each real provider accepts the
+other's tool-call history mid-conversation is checked with `python scripts\check_failover.py` (a few thousand tokens).
+
 ## Code-level guards (`agent.py`)
 
 | Guard | Rule |
@@ -103,7 +113,7 @@ data. If it is unavailable the agent falls back to keyword rules and records `ju
 
 | Layer | Result | Honest reading |
 |---|---|---|
-| `pytest` (fake LLM, no key, also run in CI) | **194 passed** | proves code paths and guards, not model quality |
+| `pytest` (fake LLM, no key, also run in CI) | **206 passed** | proves code paths and guards, not model quality |
 | Programmatic suite (`scripts/run_suite.py`, 76 tests: info, main flow, identity, slots, validation, safety, API, tool layer) | First clean full run on Groq `gpt-oss-120b` (step 22 code): **74/76 PASS**, 240,865 tokens. The 2 failures: I5 (a wording check that rejected a curly apostrophe: test bug) and C9 (real bug: judge false positive plus a misleading repair note). After the step 23 fixes: I5, I7, F-MAIN, C1, C6-C9 PASS on Groq (C9 passed in 2 further separate Groq runs) and C6-C9 also on Gemini `gemini-3.5-flash-lite`. | The two failed tests were re-run on the fixed code, not the whole suite: no single full run exists on the final code. Earlier "71/71" runs were assembled from pieces on older builds |
 | Dev scenarios (30) | Groq: 30/30 before step 22; 26/30 after it, the 4 misses (C01-C04) were HTTP 429 quota errors, not agent failures. Gemini `gemini-3.5-flash-lite`: C01-C04 4/4 on the final code | dev set was used for tuning: a regression check, not an accuracy score |
 | Held-out sets v1-v3 | burned (fixes were made from their failures) | do not quote them as a score; a fresh set is needed for a blind number |
